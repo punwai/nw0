@@ -2,12 +2,10 @@
 modal run -d entrypoint.py
 """
 
-import asyncio
 import os
 from datetime import datetime
 from pathlib import Path
 import modal
-from train import train
 
 MODAL_TOKEN = Path("~/.modal.toml").expanduser()
 def build_modal_image() -> modal.Image:
@@ -21,7 +19,14 @@ def build_modal_image() -> modal.Image:
             "chz>=0.3.0",
             "s3fs",
             "pyinstrument",
+            "python-dotenv",
+            "openai",
+            "requests",
+            "pydantic",
         )
+        .copy_local_file("train.py", "/root/train.py")
+        .copy_local_file("rollout.py", "/root/rollout.py")
+        .copy_local_file("connect4.py", "/root/connect4.py")
         .add_local_file(MODAL_TOKEN, remote_path="/root/.modal.toml")
     )
 
@@ -40,13 +45,13 @@ image = build_modal_image()
     timeout=APP_TIMEOUT,
     secrets=[
         modal.Secret.from_name("wandb-secret"),
-        # modal.Secret.from_name("aws-secret"),
     ],
 )
 async def train_remote():
+    from train import train
     return await train()
 
 
 @app.local_entrypoint()
 def run():
-    asyncio.run(train_remote.remote())
+    train_remote.remote()

@@ -1,6 +1,5 @@
 import art
 import os
-import art
 from dotenv import load_dotenv
 import random
 
@@ -8,7 +7,6 @@ from openpipe.client import OpenPipe
 from art.local import LocalBackend
 
 from rollout import Config, ScenarioConnect4, rollout
-from dataclasses import dataclass
 
 load_dotenv()
 
@@ -18,7 +16,8 @@ async def train():
 
     random.seed(42)
 
-    backend = LocalBackend(path="./.art")
+    # Use local backend with persistent volume
+    backend = LocalBackend(path="/root/workspace/.art")
 
     model = art.TrainableModel(
         name="001-script", project="connect4-local", base_model="Qwen/Qwen2.5-3B-Instruct"

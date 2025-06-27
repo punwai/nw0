@@ -7,7 +7,7 @@ import math
 import requests
 from pydantic import BaseModel
 from connect4 import Connect4, Player
-from openpipe.client import OpenPipe, UpdateLogTagsRequestFiltersItem
+from openpipe.client import UpdateLogTagsRequestFiltersItem, AsyncOpenPipe
 from art.local import LocalBackend
 from dataclasses import dataclass
 
@@ -20,7 +20,7 @@ class ScenarioConnect4(BaseModel):
 
 @art.retry(exceptions=(openai.LengthFinishReasonError, requests.ReadTimeout))
 async def rollout(
-    model: art.Model, scenario: ScenarioConnect4, op_client: OpenPipe, config: Config
+    model: art.Model, scenario: ScenarioConnect4, op_client: AsyncOpenPipe, config: Config
 ) -> art.Trajectory:
     game = Connect4()
 
