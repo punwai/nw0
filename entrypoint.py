@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 import modal
 
-vol = modal.Volume.from_name("connect4-workspace")
+vol = modal.Volume.from_name("connect4-workspace", create_if_missing=True)
 
 MODAL_TOKEN = Path("~/.modal.toml").expanduser()
 def build_modal_image() -> modal.Image:

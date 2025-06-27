@@ -15,14 +15,28 @@ from openai import AsyncOpenAI
 
 @dataclass
 class Config:
+    experiment_name: str = "random_debug_2"
+    opponent: str = "random"
     max_completion_tokens: int = 128
+    learning_rate: float = 5e-5
+    beta: float = 0.0
+    group_size: int = 48
+    groups_per_step: int = 1
+    max_steps: int = 50
+    model: str = "Qwen/Qwen2.5-3B-Instruct"
+    eval_model_name: str = "gpt-4o"
+    eval_max_completion_tokens: int = 512
+
+
+def extract_move(content: str) -> int:
+    return int(content.split("<move>")[1].split("</move>")[0])
 
 
 class ScenarioConnect4(BaseModel):
     step: int
 
 
-class Opponent(Enum):
+class Opponent(str, Enum):
     RANDOM = "random"
     EVAL = "eval"
 
@@ -30,14 +44,21 @@ async def make_opponent_move(game: Connect4, opponent: Opponent) -> int:
     if opponent == Opponent.RANDOM:
         return random.choice(game.get_valid_moves())
     elif opponent == Opponent.EVAL:
-        # client = AsyncOpenA()
-        messages=[
-            {
-                "role": "system",
-                "content": "You are an excellent Connect 4 player. Always choose the next move that most likely to lead to a win. Return your move as an XML object with a single property 'move', like so: <move>{column index}</move>. The columns are zero-indexed. The board is as follows: {game.render()}",
-            }
-        ]
-        return 0
+        client = AsyncOpenAI()
+        response = await client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an excellent Connect 4 player. Always choose the next move that most likely to lead to a win. Return your move as an XML object with a single property 'move', like so: <move>{column index}</move>. The columns are zero-indexed. The board is as follows: {game.render()}.",
+                }
+            ],
+            model="gpt-4o",
+            max_completion_tokens=512,
+        )
+        content = response.choices[0].message.content
+        if content is None:
+            raise ValueError("No content returned from OpenAI completion.")
+        return extract_move(content)
 
     else:
         raise ValueError(f"Invalid opponent: {opponent}")
@@ -51,6 +72,7 @@ async def rollout(
 
     move_number = 0
 
+
     # TODO: Currently the model is hard-coded to start first.
     # We need to change this later so that it sometimes start second.
 
@@ -58,7 +80,7 @@ async def rollout(
         messages_and_choices=[
             {
                 "role": "system",
-                "content": "You are an excellent Connect 4 player. Always choose the next move that most likely to lead to a win. Return your move as an XML object with a single property 'move', like so: <move>{column index}</move>. The columns are zero-indexed.",
+                "content": "You are an excellent Connect 4 player. Always choose the next move that most likely to lead to a win. Return your move as an XML object with a single property 'move', like so: <move>{column index}</move>. The columns are zero-indexed. You are player X.",
             }
         ],
         reward=0,
