@@ -6,9 +6,11 @@ import random
 from openpipe.client import OpenPipe
 from art.local import LocalBackend
 
-from rollout import Config, ScenarioConnect4, rollout
+from rollout import Config, Opponent, ScenarioConnect4, rollout
 
 load_dotenv()
+
+
 
 async def train():
     op_client = OpenPipe()
@@ -29,7 +31,7 @@ async def train():
         train_groups = await art.gather_trajectory_groups(
             (
                 art.TrajectoryGroup(
-                    rollout(model, ScenarioConnect4(step=i), op_client, config) for _ in range(48)
+                    rollout(model, ScenarioConnect4(step=i), op_client, config, Opponent.RANDOM) for _ in range(48)
                 )
                 for _ in range(1)
             ),

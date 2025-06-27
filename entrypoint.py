@@ -19,6 +19,7 @@ def build_modal_image() -> modal.Image:
             "openpipe>=4.49.0",
             "openpipe-art==0.3.7",
             "chz>=0.3.0",
+            "accelerate==1.7.0",
             "s3fs",
             "pyinstrument",
             "python-dotenv",

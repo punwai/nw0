@@ -1,3 +1,4 @@
+from enum import Enum
 import random
 import art
 
@@ -10,17 +11,41 @@ from connect4 import Connect4, Player
 from openpipe.client import UpdateLogTagsRequestFiltersItem, AsyncOpenPipe
 from art.local import LocalBackend
 from dataclasses import dataclass
+from openai import AsyncOpenAI
 
 @dataclass
 class Config:
     max_completion_tokens: int = 128
 
+
 class ScenarioConnect4(BaseModel):
     step: int
 
+
+class Opponent(Enum):
+    RANDOM = "random"
+    EVAL = "eval"
+
+async def make_opponent_move(game: Connect4, opponent: Opponent) -> int:
+    if opponent == Opponent.RANDOM:
+        return random.choice(game.get_valid_moves())
+    elif opponent == Opponent.EVAL:
+        # client = AsyncOpenA()
+        messages=[
+            {
+                "role": "system",
+                "content": "You are an excellent Connect 4 player. Always choose the next move that most likely to lead to a win. Return your move as an XML object with a single property 'move', like so: <move>{column index}</move>. The columns are zero-indexed. The board is as follows: {game.render()}",
+            }
+        ]
+        return 0
+
+    else:
+        raise ValueError(f"Invalid opponent: {opponent}")
+
+
 @art.retry(exceptions=(openai.LengthFinishReasonError, requests.ReadTimeout))
 async def rollout(
-    model: art.Model, scenario: ScenarioConnect4, op_client: AsyncOpenPipe, config: Config
+    model: art.Model, scenario: ScenarioConnect4, op_client: AsyncOpenPipe, config: Config, opponent: Opponent
 ) -> art.Trajectory:
     game = Connect4()
 
@@ -104,7 +129,7 @@ async def rollout(
             # make a move based on the LLM's output
             try_make_move(content)
             # apply random valid opponent move.
-            opponent_move = random.choice(game.get_valid_moves())
+            opponent_move = await make_opponent_move(game, opponent)
             game.make_move(opponent_move)
             move_number += 1
         except ValueError:
