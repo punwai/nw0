@@ -7,6 +7,8 @@ from datetime import datetime
 from pathlib import Path
 import modal
 
+vol = modal.Volume.from_name("connect4-workspace")
+
 MODAL_TOKEN = Path("~/.modal.toml").expanduser()
 def build_modal_image() -> modal.Image:
     return (
@@ -24,9 +26,9 @@ def build_modal_image() -> modal.Image:
             "requests",
             "pydantic",
         )
-        .copy_local_file("train.py", "/root/train.py")
-        .copy_local_file("rollout.py", "/root/rollout.py")
-        .copy_local_file("connect4.py", "/root/connect4.py")
+        .add_local_file("train.py", "/root/train.py")
+        .add_local_file("rollout.py", "/root/rollout.py")
+        .add_local_file("connect4.py", "/root/connect4.py")
         .add_local_file(MODAL_TOKEN, remote_path="/root/.modal.toml")
     )
 
@@ -46,6 +48,9 @@ image = build_modal_image()
     secrets=[
         modal.Secret.from_name("wandb-secret"),
     ],
+    volumes={
+        "/root/workspace": vol,
+    },
 )
 async def train_remote():
     from train import train

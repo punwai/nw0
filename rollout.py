@@ -97,8 +97,8 @@ async def rollout(
                 move_successful, _ = game.make_move(move)
                 if not move_successful:
                     raise ValueError("Invalid move")
-            except ValueError:
-                raise ValueError("Invalid move")
+            except Exception as e:
+                raise ValueError(f"Invalid move: {e}")
 
         try:
             # make a move based on the LLM's output
