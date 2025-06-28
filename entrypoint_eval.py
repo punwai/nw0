@@ -57,8 +57,8 @@ image = build_modal_image()
     },
 )
 async def train_remote():
-    from train import train
-    return await train()
+    from train import eval
+    return await eval()
 
 
 @app.local_entrypoint()

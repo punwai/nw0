@@ -1,4 +1,5 @@
 from connect4 import Connect4
+from solver import Connect4Solver
 
 
 def play_demo():
@@ -61,7 +62,13 @@ def interactive_play():
         try:
             col = int(input(f"Player {player_symbol}, enter column (0-6): "))
             success, winner = game.make_move(col)
-            
+
+            # apply random valid opponent move.
+            solver = Connect4Solver()
+            opponent_move = solver.get_best_move(game)
+            if opponent_move is not None:
+                game.make_move(opponent_move)
+
             if not success:
                 print("Invalid move! Try again.")
                 continue

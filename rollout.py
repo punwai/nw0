@@ -13,20 +13,8 @@ from art.local import LocalBackend
 from dataclasses import dataclass
 from openai import AsyncOpenAI
 
-@dataclass
-class Config:
-    experiment_name: str = "random_debug_2"
-    opponent: str = "random"
-    max_completion_tokens: int = 128
-    learning_rate: float = 5e-5
-    beta: float = 0.0
-    group_size: int = 48
-    groups_per_step: int = 1
-    max_steps: int = 50
-    model: str = "Qwen/Qwen2.5-3B-Instruct"
-    eval_model_name: str = "gpt-4o"
-    eval_max_completion_tokens: int = 512
-
+from solver import Connect4Solver
+from config import Config
 
 def extract_move(content: str) -> int:
     return int(content.split("<move>")[1].split("</move>")[0])
@@ -39,17 +27,33 @@ class ScenarioConnect4(BaseModel):
 class Opponent(str, Enum):
     RANDOM = "random"
     EVAL = "eval"
+    SOLVER = "solver"
 
-async def make_opponent_move(game: Connect4, opponent: Opponent) -> int:
+async def make_opponent_move(game: Connect4, opponent: Opponent, difficulty: float = 0) -> int | None:
     if opponent == Opponent.RANDOM:
         return random.choice(game.get_valid_moves())
+    elif opponent == Opponent.SOLVER:
+
+        # Difficulty = 1 means always use the solver
+        if random.random() < difficulty:
+            solver = Connect4Solver()
+            move = solver.get_best_move(game)
+            if move is None:
+                return random.choice(game.get_valid_moves())
+        else:
+            return random.choice(game.get_valid_moves())
+
     elif opponent == Opponent.EVAL:
         client = AsyncOpenAI()
         response = await client.chat.completions.create(
             messages=[
                 {
                     "role": "system",
-                    "content": "You are an excellent Connect 4 player. Always choose the next move that most likely to lead to a win. Return your move as an XML object with a single property 'move', like so: <move>{column index}</move>. The columns are zero-indexed. The board is as follows: {game.render()}.",
+                    "content": "You are an excellent Connect 4 player. Always choose the next move that most likely to lead to a win. Return your move as an XML object with a single property 'move', like so: <move>{column index}</move>. The columns are zero-indexed. You are X.",
+                },
+                {
+                    "role": "user",
+                    "content": f"{game.render()}",
                 }
             ],
             model="gpt-4o",
@@ -58,15 +62,15 @@ async def make_opponent_move(game: Connect4, opponent: Opponent) -> int:
         content = response.choices[0].message.content
         if content is None:
             raise ValueError("No content returned from OpenAI completion.")
-        return extract_move(content)
-
-    else:
-        raise ValueError(f"Invalid opponent: {opponent}")
+        try:
+            return extract_move(content)
+        except Exception as e:
+            raise ValueError(f"Invalid move: {e}")
 
 
 @art.retry(exceptions=(openai.LengthFinishReasonError, requests.ReadTimeout))
 async def rollout(
-    model: art.Model, scenario: ScenarioConnect4, op_client: AsyncOpenPipe, config: Config, opponent: Opponent
+    model: art.Model, scenario: ScenarioConnect4, op_client: AsyncOpenPipe, config: Config, opponent: Opponent, difficulty: float = 0.5
 ) -> art.Trajectory:
     game = Connect4()
 
@@ -100,6 +104,7 @@ async def rollout(
                 max_completion_tokens=config.max_completion_tokens,
                 messages=messages,
                 model=model.name,
+                temperature=1.0,
             )
 
         try:
@@ -110,6 +115,11 @@ async def rollout(
         except Exception as e:
             print("caught exception generating chat completion", e)
             raise e
+
+        choice = chat_completion.choices[0]
+        content = choice.message.content
+        assert isinstance(content, str)
+        trajectory.messages_and_choices.append(choice)
 
         try:
             if op_client.api_key:
@@ -132,10 +142,6 @@ async def rollout(
         except Exception as e:
             print(f"Error reporting to OpenPipe: {e}")
 
-        choice = chat_completion.choices[0]
-        content = choice.message.content
-        assert isinstance(content, str)
-        trajectory.messages_and_choices.append(choice)
 
         # content: <move>0</move>
         def try_make_move(content: str):
@@ -150,9 +156,23 @@ async def rollout(
         try:
             # make a move based on the LLM's output
             try_make_move(content)
+
             # apply random valid opponent move.
-            opponent_move = await make_opponent_move(game, opponent)
-            game.make_move(opponent_move)
+            k = 0
+            while k < 5:
+                # random or solver.
+                if random.random() < difficulty:
+                    opponent_move = await make_opponent_move(game, opponent, difficulty=0)
+                else:
+                    opponent_move = random.choice(game.get_valid_moves())
+
+                if opponent_move is not None:
+                    break
+                k += 1
+
+            if opponent_move is not None:
+                game.make_move(opponent_move)
+
             move_number += 1
         except ValueError:
             trajectory.reward = -1
